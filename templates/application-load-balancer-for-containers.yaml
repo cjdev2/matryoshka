@@ -6,10 +6,6 @@ Parameters:
     Type: String
     Description: The application's domain
     Default: d.cjpowered.com
-  Env:
-    Type: String
-    Description: The name of environment; with Name, forms the application's subdomain.
-    MinLength: 1
   Vpc:
     Type: String
     Description: The VPC to which the load balancer attaches.
@@ -21,6 +17,10 @@ Parameters:
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The subnets to which the load balancer attaches.
+  Certificate:
+    Type: String
+    Description: The load balancer's TLS certificate
+    MinLength: 1
 
 Resources:
   LoadBalancer:
