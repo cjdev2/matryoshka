@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an S3 bucket to store CloudFormation templates
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: 'The name of the template store'
+    Default: matryoshka-template-store
+
+Resources:
+  TemplateStore:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+
+  TemplateStorePolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref TemplateStore
+      PolicyDocument:
+        Statement:
+        - Sid: AllowReadOnlyForAll
+          Effect: Allow
+          Principal: "*"
+          Action:
+            - s3:GetObject
+          Resource:
+            - !Sub arn:aws:s3:::${BucketName}/*
+
+Outputs:
+  TemplateStore:
+    Value: !Ref TemplateStore
