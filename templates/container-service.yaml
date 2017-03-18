@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy identity provider
+
+Parameters:
+  ContainerName:
+    Type: String
+    Description: The name of the container
+    MinLength: 1
+  ContainerPort:
+    Type: Number
+    Description: The application port, inside the container
+    Default: 8080
+  Cluster:
+    Type: String
+    Description: The deployment cluster
+    MinLength: 1
+  TaskDefinition:
+    Type: String
+    Description: The task this service will be responsible for
+    MinLength: 1
+  DesiredTaskCount:
+    Type: Number
+    Description: The number of instances of the task the service should maintain
+    Default: 1
+  LoadBalancer:
+    Type: String
+    Description: The service's load balancer
+    MinLength: 1
+  Performance:
+    Type: String
+    Description: How much oomph you want
+    AllowedValues:
+      - high
+      - low
+    Default: low
+
+Mappings:
+  Performance:
+    high:
+      MinimumHealthyPercent: 100
+    low:
+      MinimumHealthyPercent: 0
+
+Resources:
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - ecs.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+      Policies:
+        - PolicyName: CanLogToCloudWatch
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:Create*
+                  - log:PutLogEvents
+                Resource: "*"
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: ServiceRole
+    Properties:
+      Cluster: !Ref Cluster
+      Role: !Ref ServiceRole
+      LoadBalancers:
+      - ContainerName: !Ref ContainerName
+        ContainerPort: !Ref ContainerPort
+        LoadBalancerName: !Ref LoadBalancer
+      DesiredCount: !Ref DesiredTaskCount
+      TaskDefinition: !Ref TaskDefinition
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: !FindInMap
+        - Performance
+        - !Ref Performance
+        - MinimumHealthyPercent
+
+Outputs:
+  Service:
+    Value: !Ref Service

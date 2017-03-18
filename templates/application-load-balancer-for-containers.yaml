@@ -63,9 +63,9 @@ Resources:
     Properties:
         Port: 443
         # this port *should* be overwritten and replaced
-        # with a dynamic port by any ECS service with a
-        # LoadBalancer field that references this TargetGroup
-        # and sufficient permissions (elasticloadbalancing:RegisterTargets, for instance)
+        # with a dynamic port by any ECS service with:
+        # - a LoadBalancer field that references this TargetGroup
+        # - sufficient permissions (elasticloadbalancing:RegisterTargets, possibly others)
         Protocol: HTTPS
         VpcId: !Ref Vpc
 
