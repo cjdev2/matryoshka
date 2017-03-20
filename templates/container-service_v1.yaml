@@ -33,6 +33,10 @@ Parameters:
       - high
       - low
     Default: low
+  TargetGroup:
+    Type: String
+    Description: Application Load Balancer Target Group ARN
+    MinLength: 1
 
 Mappings:
   Performance:
@@ -76,7 +80,7 @@ Resources:
       LoadBalancers:
       - ContainerName: !Ref ContainerName
         ContainerPort: !Ref ContainerPort
-        LoadBalancerName: !Ref LoadBalancer
+        TargetGroupArn: !Ref TargetGroup
       DesiredCount: !Ref DesiredTaskCount
       TaskDefinition: !Ref TaskDefinition
       DeploymentConfiguration:
