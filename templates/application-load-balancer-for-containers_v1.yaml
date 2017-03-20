@@ -10,23 +10,49 @@ Parameters:
     Type: String
     Description: The VPC to which the load balancer attaches.
     MinLength: 1
-  SecurityGroup:
+  LoadBalancerSecurityGroup:
     Type: String
     Description: The security group for the load balancer.
     MinLength: 1
-  Subnets:
+  NetworkServiceSubnets:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The subnets to which the load balancer attaches.
     MinLength: 1
+  LoadBalancerName:
+    Type: String
+    Description: The name of the Load Balancer
+    Default: Nested
+    MaxLength: 16
+  HostSecurityGroup:
+    Type: String
+    Description: The container hosts' security group
+    MinLength: 1
+  Protocol:
+    Type: String
+    Description: Whether the Load Balancer should handle HTTPS and HTTP or just HTTP
+    AllowedValues:
+      - HTTP
+      - HTTPS
+    Default: HTTP
   Certificate:
     Type: String
-    Description: The load balancer's TLS certificate
-    MinLength: 1
+    Description: The load balancer's TLS certificate -- required if Protocol == HTTPS
+    Default: Nothing
 
 Conditions:
-  usesProdDomain: !Equals [!Ref BaseDomain, p.cjpowered.com]
+  ProductionDomain: !Equals [!Ref BaseDomain, p.cjpowered.com]
+  HTTPS: !Equals [!Ref Protocol, HTTPS]
 
 Resources:
+  ContainerPortsSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 32768
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      GroupId: !Ref HostSecurityGroup
+
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -39,16 +65,27 @@ Resources:
         #   Value: TODO - The prefix for the location in the S3 bucket. If you don't specify a prefix, the access logs are stored in the root of the bucket.
         - Key: deletion_protection.enabled
           Value: !If
-          - usesProdDomain
+          - ProductionDomain
           - true
           - false
-      Name: !Sub ${AWS::StackName}-LoadBalancer
+      Name: !Sub ${LoadBalancerName}-LoadBalancer
       Scheme: internet-facing
-      SecurityGroups: [!Ref SecurityGroup]
-      Subnets: !Ref Subnets
+      SecurityGroups: [!Ref LoadBalancerSecurityGroup]
+      Subnets: !Ref NetworkServiceSubnets
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: !Ref Protocol
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HTTPS
     Properties:
       Certificates: [!Ref Certificate]
       DefaultActions:
@@ -56,19 +93,22 @@ Resources:
           Type: forward
       LoadBalancerArn: !Ref LoadBalancer
       Port: 443
-      Protocol: HTTPS
+      Protocol: !Ref Protocol
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-        Port: 443
-        # this port *should* be overwritten and replaced
-        # with a dynamic port by any ECS service with:
-        # - a LoadBalancer field that references this TargetGroup
-        # - sufficient permissions (elasticloadbalancing:RegisterTargets, possibly others)
-        Protocol: HTTPS
+        Port: !If
+          - HTTPS
+          - 443
+          - 80
+        Protocol: !Ref Protocol
         VpcId: !Ref Vpc
 
 Outputs:
   TargetGroup:
     Value: !Ref TargetGroup
+  CanonicalHostedZoneID:
+    Value: !GetAtt LoadBalancer.CanonicalHostedZoneID
+  DNSName:
+    Value: !GetAtt LoadBalancer.DNSName
