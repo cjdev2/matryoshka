@@ -13,7 +13,3 @@ Make changes to the templates, then run `sync-templates-to-s2.sh` when you're re
 If you add a template, the filename should take the form `what-this-template-describes_v1.yaml`
 
 Please be mindful of the versioning scheme--if you make a breaking change (i.e. changing required parameters / removing resources), or you're just not sure, increment the file version.
-
-## TODO
-- sync on githook--when templates are pushed to git, they should automatically end up in an s3 bucket, ready for use
-- mirror git history to s3, for automatic versioning?
