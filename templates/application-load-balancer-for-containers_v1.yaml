@@ -38,6 +38,10 @@ Parameters:
     Type: String
     Description: The load balancer's TLS certificate -- required if Protocol == HTTPS
     Default: Nothing
+  ExpectedHealthCheckResponseCode:
+    Type: Number
+    Description: The expected health check response code -- default is 200
+    Default: 200
 
 Conditions:
   ProductionDomain: !Equals [!Ref BaseDomain, p.cjpowered.com]
@@ -104,6 +108,8 @@ Resources:
           - 80
         Protocol: !Ref Protocol
         VpcId: !Ref Vpc
+        Matcher:
+          HttpCode: !Ref ExpectedHealthCheckResponseCode
 
 Outputs:
   TargetGroup:
