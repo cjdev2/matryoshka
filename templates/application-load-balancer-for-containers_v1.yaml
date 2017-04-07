@@ -72,7 +72,6 @@ Resources:
           - ProductionDomain
           - true
           - false
-      Name: !Sub ${LoadBalancerName}-LoadBalancer
       Scheme: internet-facing
       SecurityGroups: [!Ref LoadBalancerSecurityGroup]
       Subnets: !Ref NetworkServiceSubnets

@@ -1,7 +1,5 @@
 #!/bin/bash
-
-SCRIPT=$(realpath $0)
-SCRIPTPATH=$(dirname $SCRIPT)
+cd $(dirname $0)
 
 aws s3 sync --delete ./templates s3://$( \
   aws cloudformation describe-stack-resource \
