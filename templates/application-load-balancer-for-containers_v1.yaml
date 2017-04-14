@@ -38,6 +38,10 @@ Parameters:
     Type: String
     Description: The load balancer's TLS certificate -- required if Protocol == HTTPS
     Default: Nothing
+  HealthCheckPath:
+    Type: String
+    Description: The HTTP path to ping for the health check -- default is /
+    Default: /
   ExpectedHealthCheckResponseCode:
     Type: Number
     Description: The expected health check response code -- default is 200
@@ -45,6 +49,7 @@ Parameters:
 
 Conditions:
   ProductionDomain: !Equals [!Ref BaseDomain, p.cjpowered.com]
+  HTTP: !Equals [!Ref Protocol, HTTP]
   HTTPS: !Equals [!Ref Protocol, HTTPS]
 
 Resources:
@@ -78,6 +83,7 @@ Resources:
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HTTP
     Properties:
       DefaultActions:
         - TargetGroupArn: !Ref TargetGroup
@@ -90,7 +96,8 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Condition: HTTPS
     Properties:
-      Certificates: [!Ref Certificate]
+      Certificates:
+        - CertificateArn: !Ref Certificate
       DefaultActions:
         - TargetGroupArn: !Ref TargetGroup
           Type: forward
@@ -101,14 +108,12 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-        Port: !If
-          - HTTPS
-          - 443
-          - 80
-        Protocol: !Ref Protocol
-        VpcId: !Ref Vpc
-        Matcher:
-          HttpCode: !Ref ExpectedHealthCheckResponseCode
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref Vpc
+      HealthCheckPath: !Ref HealthCheckPath
+      Matcher:
+        HttpCode: !Ref ExpectedHealthCheckResponseCode
 
 Outputs:
   TargetGroup:
