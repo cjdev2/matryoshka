@@ -31,6 +31,7 @@ Parameters:
     Description: How much oomph you want
     AllowedValues:
       - high
+      - medium
       - low
     Default: low
   TargetGroup:
@@ -42,8 +43,13 @@ Mappings:
   Performance:
     high:
       MinimumHealthyPercent: 100
+      MaximumPercent: 200
+    medium:
+      MinimumHealthyPercent: 50
+      MaximumPercent: 100
     low:
       MinimumHealthyPercent: 0
+      MaximumPercent: 100
 
 Resources:
   ServiceRole:
@@ -84,11 +90,8 @@ Resources:
       DesiredCount: !Ref DesiredTaskCount
       TaskDefinition: !Ref TaskDefinition
       DeploymentConfiguration:
-        MaximumPercent: 100
-        MinimumHealthyPercent: !FindInMap
-        - Performance
-        - !Ref Performance
-        - MinimumHealthyPercent
+        MinimumHealthyPercent: !FindInMap [Performance, !Ref Performance, MinimumHealthyPercent]
+        MaximumPercent: !FindInMap [Performance, !Ref Performance, MaximumPercent]
 
 Outputs:
   Service:
