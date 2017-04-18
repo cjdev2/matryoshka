@@ -122,3 +122,7 @@ Outputs:
     Value: !GetAtt LoadBalancer.CanonicalHostedZoneID
   DNSName:
     Value: !GetAtt LoadBalancer.DNSName
+  LoadBalancerFullName:
+    Value: !GetAtt LoadBalancer.LoadBalancerFullName
+  TargetGroupFullName:
+    Value: !GetAtt TargetGroup.TargetGroupFullName
