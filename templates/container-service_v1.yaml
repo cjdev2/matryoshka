@@ -96,3 +96,5 @@ Resources:
 Outputs:
   Service:
     Value: !Ref Service
+  Name:
+    Value: !GetAtt Service.Name
