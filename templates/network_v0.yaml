@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Network configuration
+
+Parameters:
+  Ec2KeyPairName:
+    Type: String
+    Description: KeyPair to use for remote access
+    Default: testing-20161206
+    MinLength: 1
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.26.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref 'Vpc'
+      InternetGatewayId: !Ref 'Gateway'
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'Vpc'
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref 'RouteTable'
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref 'Gateway'
+  NetworkServiceSubnetAz1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref 'Vpc'
+      CidrBlock: 10.26.6.0/24
+      AvailabilityZone: !Select ['0', !GetAZs {Ref: 'AWS::Region'}]
+  NetworkServiceSubnetAz2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref 'Vpc'
+      CidrBlock: 10.26.7.0/24
+      AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
+  NetworkServiceSubnetAz1Route:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'NetworkServiceSubnetAz1'
+      RouteTableId: !Ref 'RouteTable'
+  NetworkServiceSubnetAz2Route:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'NetworkServiceSubnetAz2'
+      RouteTableId: !Ref 'RouteTable'
+  DatabaseSubnetAz1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref 'Vpc'
+      CidrBlock: 10.26.8.0/24
+      AvailabilityZone: !Select ['0', !GetAZs {Ref: 'AWS::Region'}]
+  DatabaseSubnetAz2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref 'Vpc'
+      CidrBlock: 10.26.9.0/24
+      AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
+  DatabaseSubnetAz1Route:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'DatabaseSubnetAz1'
+      RouteTableId: !Ref 'RouteTable'
+  DatabaseSubnetAz2Route:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'DatabaseSubnetAz2'
+      RouteTableId: !Ref 'RouteTable'
+  UnreachableSubnetAz1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref 'Vpc'
+      CidrBlock: 10.26.10.0/24
+      AvailabilityZone: !Select ['0', !GetAZs {Ref: 'AWS::Region'}]
+  UnreachableSubnetAz2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref 'Vpc'
+      CidrBlock: 10.26.11.0/24
+      AvailabilityZone: !Select ['1', !GetAZs {Ref: 'AWS::Region'}]
+  UnreachableSubnetAz1Route:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'UnreachableSubnetAz1'
+      RouteTableId: !Ref 'RouteTable'
+  UnreachableSubnetAz2Route:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'UnreachableSubnetAz2'
+      RouteTableId: !Ref 'RouteTable'
+  NetworkServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Network applications allowed Ports
+      VpcId: !Ref 'Vpc'
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '8000'
+        ToPort: '9999'
+        SourceSecurityGroupId: !Ref 'LoadBalancerSecurityGroup'
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ELB Allowed Ports
+      VpcId: !Ref 'Vpc'
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '1'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+  HostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Host alowed access and trusted group
+      VpcId: !Ref 'Vpc'
+      SecurityGroupIngress: []
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Database allowed access
+      VpcId: !Ref 'Vpc'
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '1'
+        ToPort: '65535'
+        SourceSecurityGroupId: !Ref 'HostSecurityGroup'
+
+Outputs:
+  VPC:
+    Description: VPC ID
+    Value: !Ref 'Vpc'
+  Gateway:
+    Value: !Ref 'Gateway'
+  RouteTable:
+    Value: !Ref 'RouteTable'
+  NetworkServiceSubnets:
+    Description: Subnets for network-facing container hosts
+    Value: !Sub '${NetworkServiceSubnetAz1},${NetworkServiceSubnetAz2}'
+  DatabaseSubnets:
+    Description: Subnets for databases
+    Value: !Sub '${DatabaseSubnetAz1},${DatabaseSubnetAz2}'
+  UnreachableSubnets:
+    Description: Subnets for task-only container hosts
+    Value: !Sub '${UnreachableSubnetAz1},${UnreachableSubnetAz2}'
+  NetworkServiceSecurityGroup:
+    Value: !Ref 'NetworkServiceSecurityGroup'
+  LoadBalancerSecurityGroup:
+    Value: !Ref 'LoadBalancerSecurityGroup'
+  HostSecurityGroup:
+    Value: !Ref 'HostSecurityGroup'
+  DatabaseSecurityGroup:
+    Value: !Ref 'DatabaseSecurityGroup'
+  Ec2KeyPairName:
+    Value: !Ref 'Ec2KeyPairName'

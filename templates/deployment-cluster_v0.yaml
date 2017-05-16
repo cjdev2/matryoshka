@@ -1,0 +1,285 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deployment cluster
+
+Parameters:
+  Vpc:
+    Type: String
+    Description: The VPC into which cluster is created.
+  NetworkServiceSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The subnets into which the service container hosts are placed
+  Ec2KeyPairName:
+    Type: String
+    Description: KeyPair to use for remote access
+    MinLength: 1
+  HostSecurityGroup:
+    Type: String
+    Description: Network-provided security group for general host access
+    MinLength: 1
+  NetworkServiceSecurityGroup:
+    Type: String
+    Description: Network-provided security group to access service ports
+    MinLength: 1
+  SecretsStore:
+    Type: String
+    Description: Bucket where encrypted configurations are kept
+    MinLength: 1
+  EncryptionKey:
+    Type: String
+    Description: Encryption key for decrypting environment secrets
+    MinLength: 1
+  Performance:
+    Type: String
+    Description: Peformance classification
+    AllowedValues: [high, medium, low]
+    Default: low
+
+Resources:
+  CloudwatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref AWS::StackName
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      Path: /
+      Policies: []
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [!Ref InstanceRole]
+
+  ContainerCluster:
+    Type: AWS::ECS::Cluster
+
+  ContainerInstanceConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [Region, !Ref 'AWS::Region', ami]
+      InstanceType: !FindInMap [Performance, !Ref Performance, InstanceType]
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !Ref Ec2KeyPairName
+      SecurityGroups: [!Ref HostSecurityGroup, !Ref NetworkServiceSecurityGroup]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          echo ECS_CLUSTER=${ContainerCluster} >> /etc/ecs/ecs.config
+          yum update -y aws-cfn-bootstrap
+          yum install -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-init -v \
+            --stack ${AWS::StackName}
+            --resource ContainerInstanceConfiguration
+            --region ${AWS::Region}
+    Metadata:
+      Comment: Container host confuration
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              awslogs: []
+          services:
+            sysvinit:
+              awslogs:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
+              rsyslog:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/rsyslog.conf
+                - /etc/rsyslog.d/50-application.conf
+          files:
+            /etc/awslogs/awslogs.conf:
+              content: |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+
+                [kern.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/kern.log
+                log_group_name = host.kern.log
+                log_stream_name = {instance_id}
+
+                [messages]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/messages
+                log_group_name = host.messages
+                log_stream_name = {instance_id}
+
+                [application]
+                # TODO match this to what rsyslogd is putting
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/application.log
+                log_group_name = application
+                log_stream_name = {instance_id}
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+
+                [default]
+                region = ${AWS::Region}
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/rsyslog.d/50-application.conf:
+              content: |
+                if $syslogfacility-text == 'local6' then /var/log/application.log
+                if $syslogfacility-text == 'local6' then ~
+            /etc/logrotate.d/syslog-application:
+              content: |
+                /var/log/application.log
+                {
+                  sharedscripts
+                  postrotate
+                    /bin/kill -HUP `cat /var/run/syslogd.pid 2> /dev/null` 2> /dev/null || true
+                  endscript
+                }
+
+  ContainerInstanceScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref NetworkServiceSubnets
+      LaunchConfigurationName: !Ref ContainerInstanceConfiguration
+      MinSize: 2
+      MaxSize: 15
+      DesiredCapacity: !FindInMap [Performance, !Ref Performance, NumInstances]
+      Tags:
+      - Key: Name
+        Value: !Sub 'ECS Instance - ${AWS::StackName}'
+        PropagateAtLaunch: 'true'
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 1
+        MinInstancesInService: 0
+        MinSuccessfulInstancesPercent: 100
+        PauseTime: PT0S
+        SuspendProcesses: []
+        WaitOnResourceSignals: false
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: false
+
+  MemoryReservationScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ContainerInstanceScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+
+  MemoryReservationScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ContainerInstanceScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
+
+  MemoryReservationHighAlert:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: 3
+      Statistic: Maximum
+      Threshold: 80
+      Period: 60
+      AlarmActions: [!Ref MemoryReservationScaleUpPolicy]
+      Dimensions:
+      - Name: ClusterName
+        Value: !Ref ContainerCluster
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: MemoryReservation
+      Namespace: AWS/ECS
+
+  MemoryReservationLowAlert:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: 1
+      Statistic: Maximum
+      Threshold: 50
+      Period: 60
+      AlarmActions: [!Ref MemoryReservationScaleDownPolicy]
+      Dimensions:
+      - Name: ClusterName
+        Value: !Ref ContainerCluster
+      ComparisonOperator: LessThanThreshold
+      MetricName: MemoryReservation
+      Namespace: AWS/ECS
+
+  InstanceAccessToSecrets:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ecs-instance-secrets
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action: s3:GetObject
+          Resource: !Sub arn:aws:s3:::${SecretsStore}/*
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${EncryptionKey}
+      Roles: [!Ref InstanceRole]
+
+Mappings:
+  Region:
+    us-east-1:
+      ami: ami-275ffe31
+    us-east-2:
+      ami: ami-62745007
+    us-west-1:
+      ami: ami-689bc208
+    us-west-2:
+      ami: ami-62d35c02
+    eu-west-1:
+      ami: ami-95f8d2f3
+    eu-west-2:
+      ami: ami-bf9481db
+    eu-central-1:
+      ami: ami-085e8a67
+    ap-northeast-1:
+      ami: ami-f63f6f91
+    ap-southeast-1:
+      ami: ami-b4ae1dd7
+    ap-southeast-2:
+      ami: ami-fbe9eb98
+    ca-central-1:
+      ami: ami-ee58e58a
+
+  Performance:
+    low:
+      NumInstances: 2
+      InstanceType: t2.medium
+    medium:
+      NumInstances: 3
+      InstanceType: t2.medium
+    high:
+      NumInstances: 3
+      InstanceType: t2.large
+
+Outputs:
+  Cluster:
+    Description: Cluster Name
+    Value: !Ref ContainerCluster
+  InstanceRole:
+    Description: Name of role for attaching AWS access to ECS instances
+    Value: !Ref InstanceRole
+  HostSecurityGroup:
+    Description: Cluster hosts' security group
+    Value: !Ref HostSecurityGroup

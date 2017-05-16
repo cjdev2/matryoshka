@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security Configuration
+
+Parameters:
+  Env:
+    Type: String
+    Description: The environment discriminator
+    MinLength: 1
+
+Conditions:
+  Production:
+    Fn::Equals:
+    - Ref: Env
+    - production
+  NonProduction:
+    Fn::Not:
+    - Fn::Equals:
+      - Ref: Env
+      - production
+
+Resources:
+  SecretsStore:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+  EncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description:
+        Fn::Join:
+        - ''
+        - - Encryption key for '
+          - Ref: Env
+          - "'"
+      KeyPolicy:
+        Statement:
+        - Sid: account user can do anything, in case something goes wrong
+          Effect: Allow
+          Principal:
+            AWS:
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:iam::'
+                - Ref: AWS::AccountId
+                - ":root"
+          Action: kms:*
+          Resource: "*"
+        - Sid: administrator
+          Effect: Allow
+          Principal:
+            AWS:
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:iam::'
+                - Ref: AWS::AccountId
+                - ":user/gwiley"
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: "*"
+        - Sid: Anyone can encrypt with the key
+          Effect: Allow
+          Principal:
+            AWS:
+            - "*"
+          Action:
+          - kms:Encrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey*
+          - kms:DescribeKey
+          Resource: "*"
+  DeveloperCanDecrypt:
+    Type: AWS::IAM::Policy
+    Condition: NonProduction
+    Properties:
+      PolicyName:
+        Fn::Join:
+        - ''
+        - - Ref: Env
+          - "-developer-can-decrypt"
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource:
+          - Fn::Join:
+            - ''
+            - - 'arn:aws:kms:'
+              - Ref: AWS::Region
+              - ":"
+              - Ref: AWS::AccountId
+              - ":key/"
+              - Ref: EncryptionKey
+      Groups:
+      - Developers
+
+Outputs:
+  EncryptionKey:
+    Value:
+      Ref: EncryptionKey
+  SecretsStore:
+    Value:
+      Ref: SecretsStore
