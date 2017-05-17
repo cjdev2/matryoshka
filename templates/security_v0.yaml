@@ -85,11 +85,7 @@ Resources:
     Type: AWS::IAM::Policy
     Condition: NonProduction
     Properties:
-      PolicyName:
-        Fn::Join:
-        - ''
-        - - Ref: Env
-          - "-developer-can-decrypt"
+      PolicyName: !Sub developer-can-decrypt-${AWS::StackName}
       PolicyDocument:
         Statement:
         - Effect: Allow
