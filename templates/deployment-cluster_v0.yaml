@@ -283,3 +283,6 @@ Outputs:
   HostSecurityGroup:
     Description: Cluster hosts' security group
     Value: !Ref HostSecurityGroup
+  LogGroup:
+    Description: CloudWatch Log Group
+    Value: !Ref CloudwatchLogsGroup
