@@ -2,6 +2,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Postgres Database
 
 Parameters:
+  AppName:
+    Type: String
+    Description: The name of the application that owns the db; used to create the db name and the host domain
   BaseDomain:
     Type: String
     Description: The application's domain
@@ -45,7 +48,7 @@ Parameters:
     AllowedPattern: "[a-zA-Z0-9]*"
     ConstraintDescription: must contain only alphanumeric characters.
   DBSnapshotIdentifier:
-    Description: Id of the snapshot to use if you want to restore the db to a previous state
+    Description: Id of the snapshot to use if you want to restore the db to a previous state; leaving this blank results in the creation of a brand new db
     Type: String
     Default: ""
   DatabaseSecurityGroup:
@@ -56,7 +59,7 @@ Parameters:
 Conditions:
   Temporary: !Equals [!Ref Duration, temporary]
   Permanent: !Equals [!Ref Duration, permanent]
-  BrandNewDB: !Equals [!Ref DBSnapshotIdentifier, ""]
+  RestoreDbFromSnapshot: !Not [!Equals [!Ref DBSnapshotIdentifier, ""]]
 
 Resources:
   RdsDbSubnetGroup:
@@ -74,11 +77,13 @@ Resources:
     Properties:
       Engine: postgres
       EngineVersion: 9.4.7
-      DBSnapshotIdentifier: !Ref DBSnapshotIdentifier
-      DBName: !If
-        - BrandNewDB
-        - !Sub ${Env}authservice
-        - !Ref AWS::NoValue
+      DBSnapshotIdentifier: !If
+        - RestoreDbFromSnapshot
+        - !Ref DBSnapshotIdentifier
+        - ""
+      DBName: !Sub
+        - ${Env}${dbNamePart}
+        - { dbNamePart: !FindInMap [Apps, !Ref AppName, dbNamePart] }
       MasterUsername: !Ref DBMasterUsername
       MasterUserPassword: !Ref DBMasterUserPassword
       DBInstanceClass: !FindInMap
@@ -103,11 +108,13 @@ Resources:
     Properties:
       Engine: postgres
       EngineVersion: 9.4.7
-      DBSnapshotIdentifier: !Ref DBSnapshotIdentifier
-      DBName: !If
-        - BrandNewDB
-        - !Sub ${Env}authservice
-        - !Ref AWS::NoValue
+      DBSnapshotIdentifier: !If
+        - RestoreDbFromSnapshot
+        - !Ref DBSnapshotIdentifier
+        - ""
+      DBName: !Sub
+        - ${Env}${dbNamePart}
+        - { dbNamePart: !FindInMap [Apps, !Ref AppName, dbNamePart] }
       MasterUsername: !Ref DBMasterUsername
       MasterUserPassword: !Ref DBMasterUserPassword
       DBInstanceClass: !FindInMap
@@ -131,7 +138,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: ZZCW5RQ81QPV3
-      Name: !Sub ${Env}-db-auth.${BaseDomain}
+      Name: !Sub
+        - ${Env}-db-${domainPart}.${BaseDomain}
+        - { domainPart: !FindInMap [Apps, !Ref AppName, domainPart] }
       Type: CNAME
       TTL: 300
       ResourceRecords:
@@ -148,6 +157,14 @@ Mappings:
     low:
       InstanceType: db.t2.micro
       AllocatedStorage: 5
+  Apps:
+    authservice:
+      domainPart: auth
+      dbNamePart: authservice
+    idprovider:
+      domainPart: id-provider
+      dbNamePart: idprovider
+
 
 Outputs:
   DBHost:
