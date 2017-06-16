@@ -106,6 +106,7 @@ Resources:
     Condition: Permanent
     DeletionPolicy: Snapshot
     Properties:
+      BackupRetentionPeriod: 30
       Engine: postgres
       EngineVersion: 9.4.7
       DBSnapshotIdentifier: !If
