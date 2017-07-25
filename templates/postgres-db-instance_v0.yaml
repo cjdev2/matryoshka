@@ -9,6 +9,11 @@ Parameters:
     Type: String
     Description: The application's domain
     Default: d.cjpowered.com
+  Backup:
+    Type: String
+    Description: Should this DB be backup up?
+    Default: false
+    AllowedValues: [true, false]
   Vpc:
     Type: String
     Description: The VPC to which the load balancer attaches.
@@ -100,6 +105,9 @@ Resources:
       AllowMajorVersionUpgrade: true
       PubliclyAccessible: false
       Port: '5432'
+      Tags:
+      - Key: cj:backup
+        Value: !Ref Backup
 
   DBInstancePermanent:
     Type: AWS::RDS::DBInstance
@@ -134,6 +142,9 @@ Resources:
       PubliclyAccessible: false
       Port: '5432'
       MultiAZ: true
+      Tags:
+      - Key: cj:backup
+        Value: !Ref Backup
 
   DBHostDomain:
     Type: AWS::Route53::RecordSet
