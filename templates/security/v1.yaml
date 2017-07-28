@@ -10,18 +10,35 @@ Parameters:
     Type: String
     Description: The environment discriminator
     MinLength: 1
+  BucketDeletionPolicy:
+    Type: String
+    AllowedValues: [ Retain, Delete ]
+    Default: Delete
 
 Conditions:
   Production: !Equals [!Ref Env, production]
   NonProduction: !Not [!Equals [!Ref Env, production]]
+  RetainBucket: !Equals [!Ref BucketDeletionPolicy, Retain]
+  DeleteBucket: !Equals [!Ref BucketDeletionPolicy, Delete]
+
 
 Resources:
   SecretsStore:
     Type: AWS::S3::Bucket
+    Condition: RetainBucket
     DeletionPolicy: Retain
     Properties:
       VersioningConfiguration:
         Status: Enabled
+
+  SecretsStore:
+    Type: AWS::S3::Bucket
+    Condition: DeleteBucket
+    DeletionPolicy: Retain
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
   EncryptionKey:
     Type: AWS::KMS::Key
     Properties:
@@ -62,6 +79,7 @@ Resources:
           - kms:GenerateDataKey*
           - kms:DescribeKey
           Resource: "*"
+
   DeveloperCanDecrypt:
     Type: AWS::IAM::Policy
     Condition: NonProduction
