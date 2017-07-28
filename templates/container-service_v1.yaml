@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Deploy identity provider
+Description: Container service
 
 Parameters:
   ContainerName:
