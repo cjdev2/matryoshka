@@ -8,7 +8,7 @@ Parameters:
   BaseDomain:
     Type: String
     Description: The application's domain
-  Vpc:
+  VPC:
     Type: String
     Description: The VPC to which the load balancer attaches.
     MinLength: 1
@@ -31,14 +31,14 @@ Parameters:
     MinLength: 1
   Protocol:
     Type: String
-    Description: Whether the Load Balancer should handle HTTPS and HTTP or just HTTP
+    Description: Whether the Load Balancer should handle both HTTPS and HTTP or just HTTP
     AllowedValues:
       - HTTP
-      - HTTPS
+      - BOTH
     Default: HTTP
   Certificate:
     Type: String
-    Description: The load balancer's TLS certificate -- required if Protocol == HTTPS
+    Description: The load balancer's TLS certificate -- required if Protocol == BOTH
     Default: Nothing
   HealthCheckPath:
     Type: String
@@ -52,7 +52,7 @@ Parameters:
 Conditions:
   Production: !Equals [!Ref Env, production]
   HTTP: !Equals [!Ref Protocol, HTTP]
-  HTTPS: !Equals [!Ref Protocol, HTTPS]
+  BOTH: !Equals [!Ref Protocol, BOTH]
 
 Resources:
   ContainerPortsSecurityGroupIngress:
@@ -85,7 +85,6 @@ Resources:
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    Condition: HTTP
     Properties:
       DefaultActions:
         - TargetGroupArn: !Ref TargetGroup
@@ -96,7 +95,7 @@ Resources:
 
   HttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    Condition: HTTPS
+    Condition: BOTH
     Properties:
       Certificates:
         - CertificateArn: !Ref Certificate
