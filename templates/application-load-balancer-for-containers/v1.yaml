@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Application load balancer
+
+Parameters:
+  Env:
+    Type: String
+    Description: The environment to deploy into, e.g. "lab" or "production"
+  BaseDomain:
+    Type: String
+    Description: The application's domain
+  Vpc:
+    Type: String
+    Description: The VPC to which the load balancer attaches.
+    MinLength: 1
+  LoadBalancerSecurityGroup:
+    Type: String
+    Description: The security group for the load balancer.
+    MinLength: 1
+  NetworkServiceSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The subnets to which the load balancer attaches.
+    MinLength: 1
+  LoadBalancerName:
+    Type: String
+    Description: The name of the Load Balancer
+    Default: Nested
+    MaxLength: 16
+  HostSecurityGroup:
+    Type: String
+    Description: The container hosts' security group
+    MinLength: 1
+  Protocol:
+    Type: String
+    Description: Whether the Load Balancer should handle HTTPS and HTTP or just HTTP
+    AllowedValues:
+      - HTTP
+      - HTTPS
+    Default: HTTP
+  Certificate:
+    Type: String
+    Description: The load balancer's TLS certificate -- required if Protocol == HTTPS
+    Default: Nothing
+  HealthCheckPath:
+    Type: String
+    Description: The HTTP path to ping for the health check -- default is /
+    Default: /
+  ExpectedHealthCheckResponseCode:
+    Type: Number
+    Description: The expected health check response code -- default is 200
+    Default: 200
+
+Conditions:
+  Production: !Equals [!Ref Env, production]
+  HTTP: !Equals [!Ref Protocol, HTTP]
+  HTTPS: !Equals [!Ref Protocol, HTTPS]
+
+Resources:
+  ContainerPortsSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 32768
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      GroupId: !Ref HostSecurityGroup
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      LoadBalancerAttributes:
+        # - Key: access_logs.s3.enabled
+        #   Value: true
+        # - Key: access_logs.s3.bucket
+        #   Value: TODO - The name of the S3 bucket for the access logs. This attribute is required if access logs in Amazon S3 are enabled. The bucket must exist in the same region as the load balancer and have a bucket policy that grants Elastic Load Balancing permission to write to the bucket.
+        # - Key: access_logs.s3.prefix
+        #   Value: TODO - The prefix for the location in the S3 bucket. If you don't specify a prefix, the access logs are stored in the root of the bucket.
+        - Key: deletion_protection.enabled
+          Value: !If
+          - Production
+          - true
+          - false
+      Scheme: internet-facing
+      SecurityGroups: [!Ref LoadBalancerSecurityGroup]
+      Subnets: !Ref NetworkServiceSubnets
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HTTP
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: !Ref Protocol
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HTTPS
+    Properties:
+      Certificates:
+        - CertificateArn: !Ref Certificate
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: !Ref Protocol
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref Vpc
+      HealthCheckPath: !Ref HealthCheckPath
+      Matcher:
+        HttpCode: !Ref ExpectedHealthCheckResponseCode
+
+Outputs:
+  TargetGroup:
+    Value: !Ref TargetGroup
+  CanonicalHostedZoneID:
+    Value: !GetAtt LoadBalancer.CanonicalHostedZoneID
+  DNSName:
+    Value: !GetAtt LoadBalancer.DNSName
+  LoadBalancerFullName:
+    Value: !GetAtt LoadBalancer.LoadBalancerFullName
+  TargetGroupFullName:
+    Value: !GetAtt TargetGroup.TargetGroupFullName

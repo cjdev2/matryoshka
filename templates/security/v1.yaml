@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security configuration
+
+Parameters:
+  AdminAccountName:
+    Type: String
+    Description: The name of the AWS account that will serve as administrator
+    MinLength: 1
+  Env:
+    Type: String
+    Description: The environment discriminator
+    MinLength: 1
+
+Conditions:
+  Production: !Equals [!Ref Env, production]
+  NonProduction: !Not [!Equals [!Ref Env, production]]
+
+Resources:
+  SecretsStore:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+  EncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub Encryption key for '${Env}'
+      KeyPolicy:
+        Statement:
+        - Sid: account user can do anything, in case something goes wrong
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: "*"
+        - Sid: administrator
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws::iam::${AWS::AccountId}:user/${AdminAccountName}
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: "*"
+        - Sid: Anyone can encrypt with the key
+          Effect: Allow
+          Principal:
+            AWS: ["*"]
+          Action:
+          - kms:Encrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey*
+          - kms:DescribeKey
+          Resource: "*"
+  DeveloperCanDecrypt:
+    Type: AWS::IAM::Policy
+    Condition: NonProduction
+    Properties:
+      PolicyName: !Sub developer-can-decrypt-${AWS::StackName}
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${EncryptionKey}
+      Groups:
+      - Developers
+
+Outputs:
+  EncryptionKey:
+    Value: !Ref EncryptionKey
+  SecretsStore:
+    Value: !Ref SecretsStore
