@@ -148,7 +148,7 @@ Resources:
   DBHostDomain:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneId: ZZCW5RQ81QPV3
+      HostedZoneName: !Sub ${BaseDomain}.
       Name: !Sub
         - ${Env}-db-${domainPart}.${BaseDomain}
         - { domainPart: !FindInMap [Apps, !Ref AppName, domainPart] }
