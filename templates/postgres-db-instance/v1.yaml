@@ -40,17 +40,15 @@ Parameters:
     Description: The database admin account username
     Type: String
     MinLength: 1
-    MaxLength: 16
-    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
-    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+    MaxLength: 63
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9]+$'
   DBMasterUserPassword:
     NoEcho: true
     Description: The database admin account password
     Type: String
     MinLength: 8
-    MaxLength: 41
-    AllowedPattern: "[a-zA-Z0-9]*"
-    ConstraintDescription: must contain only alphanumeric characters.
+    MaxLength: 128
+    AllowedPattern: '^[ !#-.0-?A-~]+$'
   DBSnapshotIdentifier:
     Description: Id of the snapshot to use if you want to restore the db to a previous state; leaving this blank results in the creation of a brand new db
     Type: String
