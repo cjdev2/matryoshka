@@ -74,11 +74,6 @@ Resources:
         #   Value: TODO - The name of the S3 bucket for the access logs. This attribute is required if access logs in Amazon S3 are enabled. The bucket must exist in the same region as the load balancer and have a bucket policy that grants Elastic Load Balancing permission to write to the bucket.
         # - Key: access_logs.s3.prefix
         #   Value: TODO - The prefix for the location in the S3 bucket. If you don't specify a prefix, the access logs are stored in the root of the bucket.
-        - Key: deletion_protection.enabled
-          Value: !If
-          - Production
-          - true
-          - false
       Scheme: internet-facing
       SecurityGroups: [!Ref LoadBalancerSecurityGroup]
       Subnets: !Ref NetworkServiceSubnets
