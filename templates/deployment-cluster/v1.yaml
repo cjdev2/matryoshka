@@ -243,27 +243,27 @@ Resources:
 Mappings:
   Region:
     us-east-1:
-      ami: ami-275ffe31
+      ami: ami-fad25980
     us-east-2:
-      ami: ami-62745007
+      ami: ami-58f5db3d
     us-west-1:
-      ami: ami-689bc208
+      ami: ami-62e0d802
     us-west-2:
-      ami: ami-62d35c02
+      ami: ami-dbfee1bf
     eu-west-1:
-      ami: ami-95f8d2f3
+      ami: ami-4cbe0935
     eu-west-2:
-      ami: ami-bf9481db
+      ami: ami-dbfee1bf
     eu-central-1:
-      ami: ami-085e8a67
+      ami: ami-05991b6a
     ap-northeast-1:
-      ami: ami-f63f6f91
+      ami: ami-56bd0030
     ap-southeast-1:
-      ami: ami-b4ae1dd7
+      ami: ami-1bdc8b78
     ap-southeast-2:
-      ami: ami-fbe9eb98
+      ami: ami-14b55f76
     ca-central-1:
-      ami: ami-ee58e58a
+      ami: ami-918b30f5
 
   Performance:
     low:
