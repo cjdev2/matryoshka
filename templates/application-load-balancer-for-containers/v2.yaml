@@ -125,6 +125,10 @@ Outputs:
     Value: !GetAtt LoadBalancer.CanonicalHostedZoneID
   DNSName:
     Value: !GetAtt LoadBalancer.DNSName
+  HttpListenerArn:
+    Value: !Ref HttpListener
+  HttpsListenerArn:
+    Value: !Ref HttpsListener
   LoadBalancerFullName:
     Value: !GetAtt LoadBalancer.LoadBalancerFullName
   LoadBalancerName:

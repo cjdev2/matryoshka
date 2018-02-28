@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Postgres database
+
+Parameters:
+  Backup:
+    Type: String
+    Description: Should this DB be backed up longer than RDS automated snapshots' maximum lifespan (35 days)?
+    Default: false
+    AllowedValues: [true, false]
+  BaseDomain:
+    Type: String
+    Description: The application's domain, e.g. "google.com"
+    MinLength: 1
+  DBName:
+    Type: String
+    Description: Postgres db name, also used to create the url in the format ${Env}-db-${DBName}.${BaseDomain}
+    MinLength: 1
+  DBPort:
+    Type: String
+    Description: Port at which the db is accessible
+    Default: 5432
+  DBSecurityGroup:
+    Type: String
+    Description: Security group provided by network
+    MinLength: 1
+  DBSubnets:
+    Type: String
+    Description: The subnets to which the load balancer attaches.
+    MinLength: 1
+  DBMasterUsername:
+    Default: postgres
+    NoEcho: true
+    Description: The database admin account username
+    Type: String
+    MinLength: 1
+    MaxLength: 63
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9]+$'
+  DBMasterUserPassword:
+    NoEcho: true
+    Description: The database admin account password
+    Type: String
+    MinLength: 8
+    MaxLength: 128
+    AllowedPattern: '^[ !#-.0-?A-~]+$'
+  DBSnapshotIdentifier:
+    Description: Id of the snapshot to use if you want to restore the db to a previous state; leaving this blank results in the creation of a brand new db
+    Type: String
+    Default: ""
+  Duration:
+    Type: String
+    Description: Duration policy
+    AllowedValues: [temporary, permanent]
+  Env:
+    Type: String
+    Description: The name of environment
+    MinLength: 1
+  Performance:
+    Type: String
+    Description: Performance class
+    Default: low
+    AllowedValues: [high, low]
+  Vpc:
+    Type: String
+    Description: The VPC to which the load balancer attaches.
+    MinLength: 1
+
+Conditions:
+  Temporary: !Equals [!Ref Duration, temporary]
+  Permanent: !Equals [!Ref Duration, permanent]
+  RestoreDbFromSnapshot: !Not [!Equals [!Ref DBSnapshotIdentifier, ""]]
+
+Resources:
+  RdsDbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets available for the RDS DB Instance
+      SubnetIds: !Split
+        - ','
+        - !Ref DBSubnets
+
+  DBInstanceTemporary:
+    Type: AWS::RDS::DBInstance
+    Condition: Temporary
+    DeletionPolicy: Delete
+    Properties:
+      BackupRetentionPeriod: 35
+      Engine: postgres
+      EngineVersion: 9.6.5
+      DBSnapshotIdentifier: !If
+        - RestoreDbFromSnapshot
+        - !Ref DBSnapshotIdentifier
+        - ""
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBMasterUsername
+      MasterUserPassword: !Ref DBMasterUserPassword
+      DBInstanceClass: !FindInMap
+      - Performance
+      - !Ref Performance
+      - InstanceType
+      AllocatedStorage: !FindInMap
+      - Performance
+      - !Ref Performance
+      - AllocatedStorage
+      DBSubnetGroupName: !Ref RdsDbSubnetGroup
+      VPCSecurityGroups: [!Ref DBSecurityGroup]
+      AutoMinorVersionUpgrade: true
+      AllowMajorVersionUpgrade: true
+      PubliclyAccessible: false
+      Port: !Ref DBPort
+      Tags:
+      - Key: cj:backup
+        Value: !Ref Backup
+
+  DBInstancePermanent:
+    Type: AWS::RDS::DBInstance
+    Condition: Permanent
+    DeletionPolicy: Snapshot
+    Properties:
+      BackupRetentionPeriod: 35
+      Engine: postgres
+      EngineVersion: 9.6.5
+      DBSnapshotIdentifier: !If
+        - RestoreDbFromSnapshot
+        - !Ref DBSnapshotIdentifier
+        - ""
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBMasterUsername
+      MasterUserPassword: !Ref DBMasterUserPassword
+      DBInstanceClass: !FindInMap
+      - Performance
+      - !Ref Performance
+      - InstanceType
+      AllocatedStorage: !FindInMap
+      - Performance
+      - !Ref Performance
+      - AllocatedStorage
+      DBSubnetGroupName: !Ref RdsDbSubnetGroup
+      VPCSecurityGroups: [!Ref DBSecurityGroup]
+      AutoMinorVersionUpgrade: true
+      AllowMajorVersionUpgrade: true
+      CopyTagsToSnapshot: true
+      PubliclyAccessible: false
+      Port: !Ref DBPort
+      MultiAZ: true
+      Tags:
+      - Key: cj:backup
+        Value: !Ref Backup
+
+  DBHostDomain:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub ${BaseDomain}.
+      Name: !Sub ${Env}-db-${DBName}.${BaseDomain}
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+      - !If
+        - Temporary
+        - !GetAtt DBInstanceTemporary.Endpoint.Address
+        - !GetAtt DBInstancePermanent.Endpoint.Address
+
+Mappings:
+  Performance:
+    high:
+      InstanceType: db.t2.micro
+      AllocatedStorage: 5
+    low:
+      InstanceType: db.t2.micro
+      AllocatedStorage: 5
+
+Outputs:
+  DBHost:
+    Description: The hostname of the provisioned database
+    Value: !Ref DBHostDomain
+  DBPort:
+    Value: !Ref DBPort
