@@ -13,3 +13,7 @@ Make changes to the templates, then run `sync-templates-to-s2.sh` when you're re
 If you add a template, the filename should take the form `what-this-template-describes_v1.yaml`
 
 Please be mindful of the versioning scheme--if you make a breaking change (i.e. changing required parameters / removing resources), or you're just not sure, increment the file version.
+
+## External Resources
+
+[Deploying Microservices with Amazon ECS, AWS CloudFormation, and an Application Load Balancer](https://github.com/aws-samples/ecs-refarch-cloudformation)
