@@ -18,13 +18,13 @@ Parameters:
 Conditions:
   # assumes production env will look like "productionV1"
   Production: !Equals
-  - !Ref Env
-  - !Select [0, !Split ["V", "production"]]
+  - "production"
+  - !Select [0, !Split ["V", !Ref Env]]
 
   NonProduction: !Not
   - !Equals
-    - !Ref Env
-    - !Select [0, !Split ["V", "production"]]
+    - "production"
+    - !Select [0, !Split ["V", !Ref Env]]
 
   RetainBucket: !Equals [!Ref BucketDeletionPolicy, Retain]
 
